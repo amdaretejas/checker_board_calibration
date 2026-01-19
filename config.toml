@@ -1,0 +1,12 @@
+[client]
+showErrorDetails = false
+
+[runner]
+fastReruns = true
+
+[server]
+runOnSave = true
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = true
