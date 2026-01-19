@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Checkerboard Calibration Tool</title>
+
+  <!-- Tailwind -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- JSZip + FileSaver -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+  <!-- OpenCV.js (for findChessboardCorners) -->
+  <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto p-4">
+    <div class="flex items-start gap-4">
+
+      <!-- Sidebar -->
+      <aside class="w-80 bg-slate-900 rounded-2xl p-4 border border-slate-800 sticky top-4">
+        <h2 class="text-xl font-bold mb-3">⚙️ Settings</h2>
+
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm text-slate-300">File Name</label>
+            <input id="fileName" class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800" value="camera1"/>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-sm text-slate-300">Board X</label>
+              <input id="boardX" type="number" min="2" max="20"
+                     class="w-full mt-1 px-2 py-2 rounded-xl bg-slate-950 border border-slate-800"
+                     value="6"/>
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Board Y</label>
+              <input id="boardY" type="number" min="2" max="20"
+                     class="w-full mt-1 px-2 py-2 rounded-xl bg-slate-950 border border-slate-800"
+                     value="9"/>
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Size</label>
+              <input id="squareSize" type="number" min="1" max="100"
+                     class="w-full mt-1 px-2 py-2 rounded-xl bg-slate-950 border border-slate-800"
+                     value="24"/>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-sm text-slate-300">Box W</label>
+              <input id="boxW" type="number" min="20" max="640"
+                     class="w-full mt-1 px-2 py-2 rounded-xl bg-slate-950 border border-slate-800"
+                     value="192"/>
+            </div>
+            <div>
+              <label class="text-sm text-slate-300">Box H</label>
+              <input id="boxH" type="number" min="20" max="480"
+                     class="w-full mt-1 px-2 py-2 rounded-xl bg-slate-950 border border-slate-800"
+                     value="144"/>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-sm text-slate-300">Duration (minutes)</label>
+            <input id="durationMin" type="number" min="1" max="60"
+                   class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800"
+                   value="5"/>
+          </div>
+
+          <div>
+            <label class="text-sm text-slate-300">Filter</label>
+            <select id="filterType"
+                    class="w-full mt-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-800">
+              <option value="normal">normal</option>
+              <option value="bw">black&white</option>
+            </select>
+          </div>
+
+          <div class="flex gap-2">
+            <button id="startBtn"
+              class="flex-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold">
+              ▶ Start Capturing
+            </button>
+            <button id="stopBtn"
+              class="flex-1 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 font-semibold">
+              ⛔ Stop
+            </button>
+          </div>
+
+          <button id="clearBtn"
+            class="w-full px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold border border-slate-700">
+            Clear Captures
+          </button>
+
+          <div class="mt-4">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold">📥 Downloaded Images</h3>
+              <span id="capCount" class="text-xs bg-slate-800 px-2 py-1 rounded-lg border border-slate-700">0</span>
+            </div>
+
+            <div class="mt-2 max-h-64 overflow-auto bg-slate-950 rounded-xl border border-slate-800 p-2" id="captureList">
+              <div class="text-sm text-slate-400">No images captured yet.</div>
+            </div>
+          </div>
+
+          <div class="mt-3 hidden" id="downloadSection">
+            <button id="downloadZipBtn"
+              class="w-full px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-semibold">
+              ⬇ Download ZIP
+            </button>
+          </div>
+
+          <div class="text-xs text-slate-400 mt-4 leading-relaxed">
+            Note: This is a frontend-only tool. Calibration parameters file will contain scan info (not full camera matrix) unless OpenCV.js calibration is added.
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="flex-1 space-y-4">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-bold">📷 Live Feed</h2>
+            <div id="status" class="text-sm px-3 py-1 rounded-xl bg-slate-800 border border-slate-700">
+              Waiting for camera...
+            </div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-3 gap-4">
+            <!-- Live Canvas -->
+            <div class="col-span-2">
+              <canvas id="mainCanvas" width="640" height="480"
+                class="w-full rounded-2xl border border-slate-800 bg-black"></canvas>
+              <video id="video" playsinline autoplay muted class="hidden"></video>
+            </div>
+
+            <!-- ROI Preview -->
+            <div>
+              <h3 class="font-bold mb-2">🔍 ROI Preview</h3>
+              <canvas id="roiCanvas" width="320" height="240"
+                class="w-full rounded-2xl border border-slate-800 bg-black"></canvas>
+
+              <div class="mt-3 bg-slate-950 rounded-xl p-3 border border-slate-800 text-sm">
+                <div class="flex justify-between"><span class="text-slate-400">Found</span> <span id="foundText">false</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Cycle</span> <span id="cycleText">1</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">FPS</span> <span id="fpsText">0</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Rect</span> <span id="rectText">-</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selected capture preview -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-4">
+          <h2 class="text-xl font-bold">🖼️ Selected Captured Image</h2>
+          <canvas id="selectedCanvas" width="640" height="480"
+            class="w-full mt-3 rounded-2xl border border-slate-800 bg-black"></canvas>
+        </div>
+      </main>
+    </div>
+  </div>
+
+<script>
+/** ---------- Utilities ---------- **/
+const el = (id) => document.getElementById(id);
+const statusEl = el("status");
+
+let stream = null;
+let running = false;
+let endTime = 0;
+
+let captured = []; // {name, dataUrl, width, height}
+let captureCount = 0;
+
+let cycleCount = 1;
+let totalCycles = 2; // fixed in logic (swap w/h once)
+let middle = {x: 0, y: 0};
+let box = {w: 192, h: 144};
+let step = {x: 160, y: 120}; // recalculated based on calibration type concept
+let lastFrameTs = performance.now();
+let fps = 0;
+
+let opencvReady = false;
+let cvLoadedInterval = setInterval(() => {
+  if (typeof cv !== "undefined" && cv.Mat) {
+    opencvReady = true;
+    clearInterval(cvLoadedInterval);
+    statusEl.textContent = "OpenCV.js loaded ✅";
+  }
+}, 200);
+
+function setStatus(text, type="info") {
+  statusEl.textContent = text;
+  statusEl.className =
+    "text-sm px-3 py-1 rounded-xl border " +
+    (type==="ok" ? "bg-emerald-800 border-emerald-700"
+    : type==="warn" ? "bg-amber-800 border-amber-700"
+    : type==="err" ? "bg-rose-800 border-rose-700"
+    : "bg-slate-800 border-slate-700");
+}
+
+/** ---------- Camera ---------- **/
+async function requestCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    el("video").srcObject = stream;
+    setStatus("Camera permission granted ✅", "ok");
+    return true;
+  } catch (err) {
+    console.error(err);
+    setStatus("⚠ Camera permission denied", "err");
+    return false;
+  }
+}
+
+function stopCamera() {
+  if (!stream) return;
+  stream.getTracks().forEach(t => t.stop());
+  stream = null;
+}
+
+/** ---------- Captures UI ---------- **/
+function refreshCaptureList() {
+  const list = el("captureList");
+  el("capCount").textContent = captured.length;
+
+  list.innerHTML = "";
+  if (captured.length === 0) {
+    list.innerHTML = `<div class="text-sm text-slate-400">No images captured yet.</div>`;
+    return;
+  }
+
+  captured.forEach((item, idx) => {
+    const div = document.createElement("button");
+    div.className = "w-full text-left px-2 py-1 rounded-lg hover:bg-slate-800 text-sm border border-transparent hover:border-slate-700";
+    div.textContent = " - " + item.name;
+    div.onclick = () => showSelectedCapture(idx);
+    list.appendChild(div);
+  });
+}
+
+function showSelectedCapture(idx) {
+  const img = new Image();
+  img.onload = () => {
+    const ctx = el("selectedCanvas").getContext("2d");
+    ctx.clearRect(0,0,640,480);
+    ctx.drawImage(img, 0, 0, 640, 480);
+  };
+  img.src = captured[idx].dataUrl;
+}
+
+/** ---------- Chessboard detection (ROI) ---------- **/
+function detectChessboard(roiCanvas, boardX, boardY) {
+  if (!opencvReady) return false;
+
+  // read ROI into Mat
+  const src = cv.imread(roiCanvas);
+  const gray = new cv.Mat();
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+  const patternSize = new cv.Size(boardX, boardY);
+  const corners = new cv.Mat();
+
+  const flags = cv.CALIB_CB_ADAPTIVE_THRESH + cv.CALIB_CB_NORMALIZE_IMAGE;
+  const found = cv.findChessboardCorners(gray, patternSize, corners, flags);
+
+  // cleanup
+  src.delete(); gray.delete(); corners.delete();
+
+  return found;
+}
+
+/** ---------- Main Loop ---------- **/
+function updateLoop() {
+  if (!running) return;
+
+  const video = el("video");
+  const mainCanvas = el("mainCanvas");
+  const roiCanvas = el("roiCanvas");
+
+  const ctxMain = mainCanvas.getContext("2d");
+  const ctxROI = roiCanvas.getContext("2d");
+
+  // draw video on main canvas
+  ctxMain.drawImage(video, 0, 0, 640, 480);
+
+  // apply filter (optional)
+  const filterType = el("filterType").value;
+  if (filterType === "bw") {
+    const imgData = ctxMain.getImageData(0,0,640,480);
+    const d = imgData.data;
+    for (let i=0;i<d.length;i+=4){
+      const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      d[i]=d[i+1]=d[i+2]=g;
+    }
+    ctxMain.putImageData(imgData,0,0);
+  }
+
+  // compute ROI
+  const x1 = Math.max(0, Math.floor(middle.x - box.w/2));
+  const y1 = Math.max(0, Math.floor(middle.y - box.h/2));
+  const x2 = Math.min(640, Math.floor(middle.x + box.w/2));
+  const y2 = Math.min(480, Math.floor(middle.y + box.h/2));
+
+  // crop ROI into ROI canvas
+  ctxROI.clearRect(0,0,roiCanvas.width,roiCanvas.height);
+  if (x2>x1 && y2>y1) {
+    const roiW = x2-x1, roiH = y2-y1;
+    const roiImg = ctxMain.getImageData(x1,y1,roiW,roiH);
+
+    // draw scaled
+    const temp = document.createElement("canvas");
+    temp.width = roiW; temp.height = roiH;
+    temp.getContext("2d").putImageData(roiImg,0,0);
+    ctxROI.drawImage(temp, 0, 0, roiCanvas.width, roiCanvas.height);
+  }
+
+  // chessboard detect
+  const boardX = parseInt(el("boardX").value);
+  const boardY = parseInt(el("boardY").value);
+
+  let found = false;
+  if (opencvReady) found = detectChessboard(roiCanvas, boardX, boardY);
+
+  // draw rect
+  ctxMain.lineWidth = 3;
+  ctxMain.strokeStyle = found ? "#22c55e" : "#ef4444";
+  ctxMain.strokeRect(x1,y1,x2-x1,y2-y1);
+
+  // update UI text
+  el("foundText").textContent = found;
+  el("cycleText").textContent = cycleCount;
+  el("rectText").textContent = `[${x1},${y1}] -> [${x2},${y2}]`;
+
+  // fps
+  const now = performance.now();
+  const dt = now - lastFrameTs;
+  lastFrameTs = now;
+  fps = Math.round(1000 / Math.max(1, dt));
+  el("fpsText").textContent = fps;
+
+  // when found -> capture + move
+  if (found) {
+    captureCurrentFrame(mainCanvas);
+
+    // move to next
+    middle.x += step.x;
+
+    if (middle.x >= 640) {
+      middle.x = step.x;
+      middle.y += step.y;
+    }
+
+    // cycle completion logic
+    if (middle.y >= 480) {
+      if (cycleCount < totalCycles) {
+        cycleCount += 1;
+
+        // swap w/h
+        const t = box.w; box.w = box.h; box.h = t;
+
+        // reset scan
+        middle.x = step.x;
+        middle.y = step.y;
+      } else {
+        // done
+        running = false;
+        setStatus("✅ Capturing process complete.", "ok");
+        el("downloadSection").classList.remove("hidden");
+      }
+    }
+  }
+
+  // timeout
+  if (Date.now() > endTime) {
+    running = false;
+    setStatus("⏳ Timeout reached. Capture stopped.", "warn");
+  }
+
+  requestAnimationFrame(updateLoop);
+}
+
+/** ---------- Capture frame ---------- **/
+function captureCurrentFrame(canvas) {
+  captureCount += 1;
+  const name = `capture_${String(captureCount).padStart(3,"0")}`;
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+  captured.push({name, dataUrl, width: 640, height: 480});
+  refreshCaptureList();
+}
+
+/** ---------- ZIP Download ---------- **/
+async function downloadZIP() {
+  const zip = new JSZip();
+  const folder = zip.folder("Images");
+
+  // images
+  for (const item of captured) {
+    const base64 = item.dataUrl.split(",")[1];
+    folder.file(item.name + ".jpg", base64, {base64: true});
+  }
+
+  // params file
+  const params = {
+    file_name: el("fileName").value,
+    board_x: parseInt(el("boardX").value),
+    board_y: parseInt(el("boardY").value),
+    square_size: parseFloat(el("squareSize").value),
+    captures: captured.length,
+    timestamp: new Date().toISOString(),
+    note: "Frontend-only export. Calibration matrix not computed in this version."
+  };
+
+  zip.file("parameters.json", JSON.stringify(params, null, 2));
+
+  const content = await zip.generateAsync({type:"blob"});
+  saveAs(content, `${el("fileName").value}_calibration.zip`);
+}
+
+/** ---------- Buttons ---------- **/
+el("startBtn").onclick = async () => {
+  if (!opencvReady) {
+    setStatus("⏳ OpenCV.js is still loading. Wait few seconds.", "warn");
+    return;
+  }
+
+  if (!stream) {
+    const ok = await requestCamera();
+    if (!ok) return;
+  }
+
+  // init variables
+  running = true;
+  cycleCount = 1;
+  totalCycles = 2;
+
+  box.w = parseInt(el("boxW").value);
+  box.h = parseInt(el("boxH").value);
+
+  // step = frame size / 4 style (same as your logic)
+  step.x = Math.floor(640 / 4);
+  step.y = Math.floor(480 / 4);
+
+  middle.x = step.x;
+  middle.y = step.y;
+
+  const durationMin = parseInt(el("durationMin").value);
+  endTime = Date.now() + durationMin * 60 * 1000;
+
+  setStatus("📷 Capturing in progress...", "info");
+  el("downloadSection").classList.add("hidden");
+
+  requestAnimationFrame(updateLoop);
+};
+
+el("stopBtn").onclick = () => {
+  running = false;
+  setStatus("⛔ Stopped by user", "warn");
+};
+
+el("clearBtn").onclick = () => {
+  captured = [];
+  captureCount = 0;
+  refreshCaptureList();
+  setStatus("Cleared captured images.", "info");
+  el("downloadSection").classList.add("hidden");
+  const ctx = el("selectedCanvas").getContext("2d");
+  ctx.clearRect(0,0,640,480);
+};
+
+el("downloadZipBtn").onclick = downloadZIP;
+
+/** init */
+refreshCaptureList();
+setStatus("Waiting for OpenCV.js & camera permission...", "info");
+</script>
+
+</body>
+</html>
