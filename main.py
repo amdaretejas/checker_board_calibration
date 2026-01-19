@@ -189,7 +189,7 @@ webrtc_streamer(
     key="camera",
     video_transformer_factory=VideoTransformer,
     media_stream_constraints={"video": True, "audio": False},
-    async_transform=True,
+    async_transform=False,
 )
 
 
