@@ -60,6 +60,16 @@ st.session_state.setdefault("calibration_params", None)
 st.session_state.setdefault("calibration_done", False)
 
 
+# ✅ WebRTC
+webrtc_ctx = webrtc_streamer(
+    key="video-custom",
+    mode=WebRtcMode.SENDONLY,
+    media_stream_constraints={"video": True, "audio": False},
+    desired_playing_state=True,
+    video_receiver_size=10,
+    sendback_video=False,
+)
+
 # ============================================================
 # PARAMETERS PAGE
 # ============================================================
@@ -146,16 +156,6 @@ elif st.session_state.live_capturing_page:
         st.session_state.parameters_page = True
         st.session_state.live_capturing_page = False
         st.rerun()
-
-    # ✅ WebRTC
-    webrtc_ctx = webrtc_streamer(
-        key="video-custom",
-        mode=WebRtcMode.SENDONLY,
-        media_stream_constraints={"video": True, "audio": False},
-        desired_playing_state=True,
-        video_receiver_size=10,
-        sendback_video=False,
-    )
 
     status = st.empty()
     image_place = col2.empty()
