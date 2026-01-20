@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+streamlit_host_keys
+streamlit_host_keys.pub
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
