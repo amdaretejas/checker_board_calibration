@@ -246,7 +246,7 @@ elif st.session_state.live_capturing_page:
                     status.success("✅ Capturing Completed Successfully.")
                     break
 
-        time.sleep(0.15)
+        time.sleep(1)
 
     # move next page if completed
     if st.session_state.capture_completed:
