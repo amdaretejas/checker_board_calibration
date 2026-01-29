@@ -37,6 +37,7 @@ st.session_state.setdefault("parameters_page", True)
 st.session_state.setdefault("live_capturing_page", False)
 st.session_state.setdefault("camera_calibration_page", False)
 st.session_state.setdefault("download_page", False)
+st.session_state.setdefault("results_page", False)
 
 st.session_state.setdefault("file_name", "camera1")
 st.session_state.setdefault("board_x", 6)
@@ -395,3 +396,54 @@ elif st.session_state.download_page:
         file_name=f"{st.session_state.file_name}_calibration.zip",
         mime="application/zip",
     )
+    if st.button("compair result"):
+        st.session_state.download_page = False
+        st.session_state.results_page = True
+        st.rerun()
+
+
+# ============================================================
+# FINAL RESULTS
+# ============================================================
+if st.session_state.results_page:
+
+    st.markdown(
+        """
+        <h3 style='text-align: center; font-weight: 800; margin-bottom: 20px;'>
+            Final results
+        </h3>
+        """,
+        unsafe_allow_html=True
+    )
+    col1, col2, col3 = st.columns([1, 2, 1])
+    if col1.button("⬅ Back"):
+        st.session_state.download_page = True
+        st.session_state.results_page = False
+        st.rerun()
+    
+    status = st.empty()
+    col1, col2 = st.columns([1, 1])
+    col1.subheader('normal live')
+    col2.subheader('modified live')
+    normal_image = col1.empty()
+    modified_image = col2.empty()
+    
+    while True:
+
+        if webrtc_ctx.video_receiver is None:
+            status.warning("⚠️ Camera disconnected.")
+            break
+
+        try:
+            video_frame = webrtc_ctx.video_receiver.get_frame(timeout=1)
+        except queue.Empty:
+            continue
+
+        frame = video_frame.to_ndarray(format="rgb24")
+
+        if st.session_state.filter_type == "black&white":
+            gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+            frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+
+        normal_image.image(frame, channels="RGB", use_container_width=True)
+        modified_image.image(frame, channels="RGB", use_container_width=True)
