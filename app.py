@@ -25,6 +25,11 @@ st.markdown(
 
 FRAME_SIZE = (640, 480)  # (width, height)
 
+# ✅ RTC Config (IMPORTANT for Cloud)
+RTC_CONFIGURATION = {
+    "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+}
+
 # ---------------------------
 # Session Defaults
 # ---------------------------
@@ -64,9 +69,10 @@ st.session_state.setdefault("calibration_done", False)
 webrtc_ctx = webrtc_streamer(
     key="video-custom",
     mode=WebRtcMode.SENDONLY,
+    rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints={"video": True, "audio": False},
     desired_playing_state=True,
-    video_receiver_size=10,
+    video_receiver_size=30,
     sendback_video=False,
 )
 
@@ -246,7 +252,7 @@ elif st.session_state.live_capturing_page:
                     status.success("✅ Capturing Completed Successfully.")
                     break
 
-        time.sleep(1)
+        # time.sleep(0.1)
 
     # move next page if completed
     if st.session_state.capture_completed:
