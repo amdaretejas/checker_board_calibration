@@ -7,7 +7,6 @@ import json
 import zipfile
 import io
 import logging
-import math
 
 from streamlit_webrtc import WebRtcMode, webrtc_streamer
 from streamlit_drawable_canvas import st_canvas
@@ -65,34 +64,17 @@ st.session_state.setdefault("capture_count", 0)
 
 st.session_state.setdefault("capture_completed", False)
 st.session_state.setdefault("page_transition", False)
-st.session_state.setdefault("points", [])
-st.session_state.setdefault("distance_px", None)
 
 # calibration result
 st.session_state.setdefault("calibration_zip_bytes", None)
 st.session_state.setdefault("calibration_params", None)
 st.session_state.setdefault("calibration_done", False)
 
-def mouse_click(event, x, y, flag, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        st.session_state.points.append((x, y))
-
-        if len(st.session_state.points) == 2:
-            x1, y1 = st.session_state.points[0]
-            x2, y2 = st.session_state.points[1]
+st.session_state.setdefault("points", [])
+st.session_state.setdefault("distance_px", None)
 
 
-            st.session_state.distance_px = math.sq((x2 - x1)**2 + (y2-y1)**2)
-            print(f" Distance: {st.session_state.distance_px:.2f} pixels")
-
-        if len(st.session_state.points) > 2:
-            st.session_state.points = [x, y]
-            st.session_state.distance_px = None
-            
-# cv2.namedWindow("undistorted")
-cv2.setMouseCallback("undistorted", mouse_click)
-
-camera = cv2.VideoCapture(0)
+camera = cv2.VideoCapture(0, cv2.CAP_V4L2)
 
 # ============================================================
 # PARAMETERS PAGE
@@ -476,21 +458,5 @@ if st.session_state.results_page:
         x, y, w_roi, h_roi = roi
         undistorted = undistorted[y:y + h_roi, x:x + w_roi]
 
-        display = undistorted.copy()
-
-        if len(st.session_state.points) >= 1:
-            cv2.circle(display, st.session_state.points[1], 6 , (0, 255, 0), -1)
-
-        if len(st.session_state.points) >= 2:
-            cv2.circle(display, st.session_state.points[0], 6 , (0, 255, 0), -1)
-            cv2.line(display, st.session_state.points[0], st.session_state.points[1], (0, 255, 0), 2)
-
-            if st.session_state.distance_dx is not None:
-                mid_x = (st.session_state.points[0][0] + st.session_state.points[1][0]) // 2
-                mid_y = (st.session_state.points[0][1] + st.session_state.points[1][1]) // 2
-                cv2.putText(display, f"{st.session_state.distance_dx}px", (mid_x, mid_y - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                
-
         normal_image.image(normal_frame, channels="RGB", use_container_width=True)
-        modified_image.image(display, channels="RGB", use_container_width=True)
+        normal_image.image(undistorted, channels="RGB", use_container_width=True)
