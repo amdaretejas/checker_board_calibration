@@ -384,31 +384,30 @@ elif st.session_state.download_page:
         "block_size": block_size,
     }
 
-    # ZIP create
-    mem_zip = io.BytesIO()
-    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-
-        for frame_rgb, name in zip(st.session_state.captured_frames, st.session_state.captured_names):
-            img_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-            ok, enc = cv2.imencode(".jpg", img_bgr)
-            if ok:
-                zf.writestr(f"Images/{name}.jpg", enc.tobytes())
-
-        zf.writestr("parameters.json", json.dumps(params, indent=4))
-
-    mem_zip.seek(0)
-
-    st.session_state.calibration_zip_bytes = mem_zip.getvalue()
-    st.session_state.calibration_done = True
+    params_json = json.dumps(params, indent=4)
 
     st.success("✅ Calibration completed successfully!")
 
     st.download_button(
-        label="⬇️ Download Calibration ZIP",
-        data=st.session_state.calibration_zip_bytes,
-        file_name=f"{st.session_state.file_name}_calibration.zip",
-        mime="application/zip",
+        label="⬇️ Download Calibration Parameters",
+        data=params_json,
+        file_name=f"{st.session_state.file_name}_parameters.json",
+        mime="application/json",
     )
+
+    # # Also save NPZ for direct OpenCV usage
+    # npz_buffer = io.BytesIO()
+    # np.savez(npz_buffer,
+    #         camera_matrix=camera_matrix,
+    #         dist_coeffs=dist_coeffs)
+
+    # st.download_button(
+    #     label="⬇️ Download Calibration File (.npz)",
+    #     data=npz_buffer.getvalue(),
+    #     file_name=f"{st.session_state.file_name}_calibration.npz",
+    #     mime="application/octet-stream",
+    # )
+
     if st.button("compair result"):
         st.session_state.download_page = False
         st.session_state.results_page = True
