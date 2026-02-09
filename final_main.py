@@ -301,6 +301,7 @@ elif st.session_state.live_capturing_page:
                 <li><b style='color:#dc3545'>Red Box:</b> No pattern</li>
                 <li><b>⏱️ Stabilization:</b> 1.5s hold</li>
                 <li><b>📸 Auto-capture</b> when ready</li>
+                <li><b>⏭️ Skip</b> to next position</li>
             </ul>
             </div>
             """,
@@ -317,8 +318,8 @@ elif st.session_state.live_capturing_page:
 
     status = col_main.empty()
     countdown_display = col_main.empty()
+    skip_button_placeholder = col_main.empty()
     image_place = col_main.empty()
-    timer_display = col_main.empty()
 
     if webrtc_ctx.video_receiver is None:
         status.warning("⚠️ Please allow camera permission from browser popup.")
@@ -348,6 +349,7 @@ elif st.session_state.live_capturing_page:
     if st.session_state.page_transition:
         st.session_state.page_transition = False
         st.session_state.capture_completed = False
+        st.session_state.skip_requested = False
 
     # loop vars
     total_cycles = int(st.session_state.total_cycles)
@@ -357,6 +359,15 @@ elif st.session_state.live_capturing_page:
     start_time = time.time()
     cycle_count = 1
     middle_line = [x_add, y_add]
+    
+    # Track last frame to avoid flickering
+    last_display_time = 0
+    display_interval = 0.1  # Update display every 100ms
+
+    # Skip button - placed outside the loop to avoid flickering
+    with skip_button_placeholder:
+        if st.button("⏭️ Skip to Next Position", key="skip_btn", use_container_width=True):
+            st.session_state.skip_requested = True
 
     while True:
 
@@ -379,6 +390,32 @@ elif st.session_state.live_capturing_page:
         if st.session_state.filter_type == "black&white":
             gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
             frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+
+        # Handle skip request
+        if st.session_state.skip_requested:
+            st.session_state.skip_requested = False
+            st.session_state.stabilization_start = None
+            
+            # Move to next position
+            middle_line[0] += x_add
+
+            if middle_line[0] >= FRAME_SIZE[0]:
+                middle_line[0] = x_add
+                middle_line[1] += y_add
+
+            if middle_line[1] >= FRAME_SIZE[1]:
+                if cycle_count < total_cycles:
+                    cycle_count += 1
+                    box_size[0], box_size[1] = box_size[1], box_size[0]
+                    middle_line = [x_add, y_add]
+                    status.info(f"⏭️ Position skipped! Starting cycle {cycle_count}...")
+                else:
+                    st.session_state.capture_completed = True
+                    status.success("🎉 Capture session completed!")
+                    break
+            
+            time.sleep(0.2)
+            st.rerun()
 
         # ROI
         x1 = middle_line[0] - int(box_size[0] / 2)
@@ -432,17 +469,21 @@ elif st.session_state.live_capturing_page:
             # Pattern not found - reset stabilization
             st.session_state.stabilization_start = None
             rect_color = (255, 0, 0)
-            cv2.putText(frame, "Searching for pattern...", (10, 30),
+            cv2.putText(frame, "Position chessboard in box", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), rect_color, 3)
 
         # Add capture info overlay
-        info_text = f"Cycle: {cycle_count}/{total_cycles} | Captured: {st.session_state.capture_count}"
+        total_expected = (st.session_state.calibration_devisior ** 2) * st.session_state.total_cycles
+        info_text = f"Cycle: {cycle_count}/{total_cycles} | Captured: {st.session_state.capture_count}/{total_expected}"
         cv2.putText(frame, info_text, (10, FRAME_SIZE[1] - 10),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-        image_place.image(frame, channels="RGB", use_container_width=True)
+        # Update display only at intervals to reduce flickering
+        if current_time - last_display_time >= display_interval:
+            image_place.image(frame, channels="RGB", use_container_width=True)
+            last_display_time = current_time
 
         # Capture logic with stabilization
         if found and st.session_state.stabilization_start is not None:
@@ -478,6 +519,7 @@ elif st.session_state.live_capturing_page:
 
                 # Small delay to show capture feedback
                 time.sleep(0.2)
+                st.rerun()
 
     # move next page if completed
     if st.session_state.capture_completed:
@@ -485,7 +527,6 @@ elif st.session_state.live_capturing_page:
         st.session_state.camera_calibration_page = True
         time.sleep(1)  # Brief pause before transition
         st.rerun()
-
 
 # ============================================================
 # CAPTURED FRAMES PAGE
